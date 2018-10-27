@@ -28,7 +28,7 @@ func (p *Pullit) CheckClient() error {
 	return nil
 }
 
-// MakeRequest creates a return a http.Request
+// MakeRequest creates a http.Request and makes sure the URL is correctly set
 func (p *Pullit) MakeRequest() (*http.Request, error) {
 	var err error
 	if p.url == nil {
