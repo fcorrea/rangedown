@@ -19,8 +19,8 @@ func New(url string) *Pullit {
 	}
 }
 
-// CheckClient ensures the code will have a http client
-func (p *Pullit) CheckClient() error {
+// EnsureClient ensures the code will have a http client
+func (p *Pullit) EnsureClient() error {
 	if p.Client == nil {
 		p.Client = http.DefaultClient
 	}
@@ -29,7 +29,7 @@ func (p *Pullit) CheckClient() error {
 }
 
 // MakeRequest creates a http.Request and makes sure the URL is correctly set
-func (p *Pullit) MakeRequest() (*http.Request, error) {
+func (p *Pullit) CreateRequest() (*http.Request, error) {
 	var err error
 	if p.url == nil {
 		p.url, err = url.Parse(p.URL)
@@ -51,11 +51,11 @@ func (p *Pullit) MakeRequest() (*http.Request, error) {
 
 // GetSize makes a HEAD request and check for the file size
 func (p *Pullit) GetSize() (int64, error) {
-	if err := p.CheckClient(); err != nil {
+	if err := p.EnsureClient(); err != nil {
 		return 0, err
 	}
 
-	req, err := p.MakeRequest()
+	req, err := p.CreateRequest()
 	if err != nil {
 		return 0, err
 	}
