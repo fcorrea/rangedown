@@ -28,8 +28,8 @@ type RangeDownload struct {
 }
 
 // Compile-time check of interface implementations.
-var _ io.ReadSeeker = (*seekinghttp.SeekingHTTP)(nil)
-var _ io.ReaderAt = (*seekinghttp.SeekingHTTP)(nil)
+var _ io.ReadSeeker = (*RangeDownload)(nil)
+var _ io.ReaderAt = (*RangeDownload)(nil)
 
 // Download will download and write the content to a temporary file
 func (f *FileChunk) Download(wg *sync.WaitGroup, chn chan int) error {
@@ -45,7 +45,6 @@ func NewRangeDownlaod(u string) *RangeDownload {
 
 // init ensures that code can execute
 func (r *RangeDownload) init() error {
-	//r.SeekingHTTP.init()
 	if r.TotalSize == 0 {
 		size, err := r.SeekingHTTP.Size()
 		if err != nil {
@@ -67,7 +66,7 @@ func (r *RangeDownload) init() error {
 
 // ReaderAt wraps seekinghttp.Seekinghttp.ReaderAt so RangeDownload can
 // also be compliant with io.ReaderAt
-func (r *RangeDownload) ReaderAt(p []byte, off int64) (int, error) {
+func (r *RangeDownload) ReadAt(p []byte, off int64) (int, error) {
 	return r.SeekingHTTP.ReadAt(p, off)
 }
 
