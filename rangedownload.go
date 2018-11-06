@@ -2,65 +2,65 @@ package rangedownload
 
 import (
 	"io"
-	"net/http"
+	"sync"
 
 	"github.com/jeffallen/seekinghttp"
 )
 
 const MaxConcurrentDownloads = 16
 
-// FileSlice holds the information regarding the download of a file
-type FileSlice struct {
-	FileName           string
-	Progress           int64
-	LastByteDownloaded int64
-	ChunkSize          int64
+// FileChunk holds the information regarding the download of a file
+type FileChunk struct {
+	ID        int
+	FileName  string
+	ChunkSize int64
 }
 
 // Rangedownload wrapps a seekinghttp.Seekinghttp field that implements
-// io.ReadSeeker and io.ReaderAt interfaces
+// io.ReadSeeker and io.ReaderAt interfaces, which is needed for a range download
 type RangeDownload struct {
-	Slices              []*FileSlice
-	URL                 string
-	SeekingHTTP         *seekinghttp.SeekingHTTP
+	Chunks              []*FileChunk
+	SeekingHTTP         seekinghttp.SeekingHTTP
 	TotalSize           int64
 	ConcurrentDownloads int
 	TotalProgress       int
+	wg                  sync.WaitGroup
 }
 
 // Compile-time check of interface implementations.
-var _ io.ReadSeeker = (*SeekingHTTP)(nil)
-var _ io.ReaderAt = (*SeekingHTTP)(nil)
+var _ io.ReadSeeker = (*seekinghttp.SeekingHTTP)(nil)
+var _ io.ReaderAt = (*seekinghttp.SeekingHTTP)(nil)
 
 // Download will download and write the content to a temporary file
-func (f *FileSlice) Download(p chan int) error {
-	// CONTINUE FROM HERE
+func (f *FileChunk) Download(wg *sync.WaitGroup, chn chan int) error {
+	defer wg.Done()
+	chn <- 0
+	return nil
 }
 
-// New initializes a RangeDownload struct with the url
-func New(url string) *RangeDownload {
-	skhttp := seekinghttp.New(url)
-	return &RangeDownload{
-		URL:         url,
-		SeekingHTTP: skhttp,
-	}
+// NewRangeDownlaod initializes a RangeDownload struct with the url
+func NewRangeDownlaod(u string) *RangeDownload {
+	return &RangeDownload{}
 }
 
 // init ensures that code can execute
 func (r *RangeDownload) init() error {
-	r.SeekingHTTP.init()
-	if r.TotalSize == nil {
-		r.TotalSize = r.SeekingHTTP.Size()
+	//r.SeekingHTTP.init()
+	if r.TotalSize == 0 {
+		size, err := r.SeekingHTTP.Size()
+		if err != nil {
+			r.TotalSize = size
+		}
 	}
 	if r.ConcurrentDownloads > MaxConcurrentDownloads {
 		r.ConcurrentDownloads = MaxConcurrentDownloads
 	}
-	sliceSize = r.TotalSize / r.ConcurrentDownloads
-	for range r.ConcurrentDownloads {
-		fslice := &FileSlice{
-			ChunkSize: sliceSize,
+	s := r.TotalSize / int64(r.ConcurrentDownloads)
+	for i := 0; i < r.ConcurrentDownloads; i++ {
+		chunk := &FileChunk{
+			ChunkSize: s,
 		}
-		append(r.Slices, fslice)
+		r.Chunks = append(r.Chunks, chunk)
 	}
 	return nil
 }
@@ -73,12 +73,34 @@ func (r *RangeDownload) ReaderAt(p []byte, off int64) (int, error) {
 
 // Read will spawn a few goroutines that download the file in parallel
 func (r *RangeDownload) Read(buf []byte) (int, error) {
-	for _, fslice := range r.Slices {
-		progressChan := make(chan []int)
-		go fslice.Download(progressChan)
+	for _, f := range r.Chunks {
+		p := make(chan int)
+		go f.Download(&r.wg, p)
 	}
+	return 0, nil
 }
 
 func (r *RangeDownload) Seek(offset int64, whence int) (int64, error) {
 	return r.SeekingHTTP.Seek(offset, whence)
+}
+
+// GetRanges will create a map containing the download ranges for all chunks
+func (f *RangeDownload) GetRanges() map[int][]int64 {
+	chunkSize := f.TotalSize / int64(len(f.Chunks))
+	remainder := f.TotalSize % int64(len(f.Chunks))
+	chunks := len(f.Chunks) - 1 // reserve a slot for the remainder bytes
+
+	ranges := make(map[int][]int64, chunks)
+	var from, to int64
+
+	for i := 0; i < chunks; i++ {
+		to += chunkSize
+		ranges[i] = append(ranges[i], from, to)
+		from = to + 1
+	}
+
+	// Insert the remainder bytes at the end of the map
+	to = to + chunkSize + remainder
+	ranges[chunks] = append(ranges[chunks], from, to)
+	return ranges
 }
