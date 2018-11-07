@@ -40,7 +40,9 @@ func (f *FileChunk) Download(wg *sync.WaitGroup, chn chan int) error {
 
 // NewRangeDownlaod initializes a RangeDownload struct with the url
 func NewRangeDownlaod(u string) *RangeDownload {
-	return &RangeDownload{}
+	r := &RangeDownload{}
+	r.SeekingHTTP.URL = u
+	return r
 }
 
 // init ensures that code can execute
