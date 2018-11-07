@@ -46,12 +46,11 @@ func (suite *RangeDownloadTestSuite) TestGetRangesOneChunk() {
 }
 
 func (suite *RangeDownloadTestSuite) TestNewRangeDownlaod() {
-	download := NewRangeDownlaod("http://foo.com")
-	suite.Equal(download.SeekingHTTP.URL, "http://foo.com")
-	suite.Nil(download.TotalSize)
-	suite.Nil(download.TotalProgress)
-	suite.Nil(download.ConcurrentDownloads)
-	suite.Equal(0, len(download.Chunks))
+	rngd := NewRangeDownlaod("http://foo.com")
+	suite.Equal(int64(0), rngd.TotalSize)
+	suite.Equal(0, rngd.TotalProgress)
+	suite.Equal(0, rngd.ConcurrentDownloads)
+	suite.Equal(0, len(rngd.Chunks))
 }
 
 func MakeFileChunks(num int) []*FileChunk {
