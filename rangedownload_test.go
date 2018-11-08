@@ -15,8 +15,8 @@ func (suite *RangeDownloadTestSuite) TestGetRanges() {
 	expected[0] = append(expected[0], 0, 40)
 	expected[1] = append(expected[1], 41, 80)
 	rngd := RangeDownload{
-		TotalSize: 80,
-		Chunks:    MakeFileChunks(2),
+		Size:   80,
+		Chunks: MakeFileChunks(2),
 	}
 	result := rngd.GetRanges()
 	suite.Equal(expected, result)
@@ -27,8 +27,8 @@ func (suite *RangeDownloadTestSuite) TestGetRangesGrowsTheLastChunk() {
 	expected[0] = append(expected[0], 0, 41)
 	expected[1] = append(expected[1], 42, 83)
 	rngd := RangeDownload{
-		TotalSize: 83,
-		Chunks:    MakeFileChunks(2),
+		Size:   83,
+		Chunks: MakeFileChunks(2),
 	}
 	result := rngd.GetRanges()
 	suite.Equal(expected, result)
@@ -38,19 +38,21 @@ func (suite *RangeDownloadTestSuite) TestGetRangesOneChunk() {
 	expected := make(map[int][]int64)
 	expected[0] = append(expected[0], 0, 80)
 	rngd := RangeDownload{
-		TotalSize: 80,
-		Chunks:    MakeFileChunks(1),
+		Size:   80,
+		Chunks: MakeFileChunks(1),
 	}
 	result := rngd.GetRanges()
 	suite.Equal(expected, result)
 }
 
 func (suite *RangeDownloadTestSuite) TestNewRangeDownlaod() {
-	rngd := NewRangeDownlaod("http://foo.com")
-	suite.Equal(int64(0), rngd.TotalSize)
-	suite.Equal(0, rngd.TotalProgress)
-	suite.Equal(0, rngd.ConcurrentDownloads)
-	suite.Equal(0, len(rngd.Chunks))
+	rngd := NewRangeDownlaod("http://foo.com/bar.iso", 2, "tmp")
+	suite.Equal(int64(0), rngd.Size)
+	suite.Equal(0, rngd.Progress)
+	suite.Equal(2, rngd.ConcurrentDownloads)
+	suite.Equal(2, len(rngd.Chunks))
+	suite.Equal("http://foo.com/bar.iso", rngd.Chunks[0].URL)
+	suite.Equal("http://foo.com/bar.iso", rngd.Chunks[1].URL)
 }
 
 func MakeFileChunks(num int) []*FileChunk {

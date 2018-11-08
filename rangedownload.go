@@ -8,6 +8,7 @@ const MaxConcurrentDownloads = 16
 
 // FileChunk holds the information regarding the download of a file
 type FileChunk struct {
+	URL       string
 	ID        int
 	FileName  string
 	ChunkSize int64
@@ -16,55 +17,45 @@ type FileChunk struct {
 // RangeDownload holds information about a download that is performed in paralell
 // using the 'Accept-Ranges' http header if supported by the server
 type RangeDownload struct {
+	URL                 string
+	DestinationDir      string
 	Chunks              []*FileChunk
-	TotalSize           int64
+	Size                int64
 	ConcurrentDownloads int
-	TotalProgress       int
+	Progress            int
 	wg                  sync.WaitGroup
+	downloaded          chan int
 }
 
 // Download will download and write the content to a temporary file
-func (f *FileChunk) Download(wg *sync.WaitGroup, chn chan int) error {
+func (f *FileChunk) Download(wg *sync.WaitGroup, out chan<- int64, start, end int64) error {
 	defer wg.Done()
-	chn <- 0
+	out <- 0
 	return nil
 }
 
 // NewRangeDownlaod initializes a RangeDownload struct with the url
-func NewRangeDownlaod(u string) *RangeDownload {
-	r := &RangeDownload{}
-	return r
-}
-
-// init ensures that code can execute
-func (r *RangeDownload) init() error {
-	if r.ConcurrentDownloads > MaxConcurrentDownloads {
-		r.ConcurrentDownloads = MaxConcurrentDownloads
+func NewRangeDownlaod(u string, c int, d string) *RangeDownload {
+	rd := &RangeDownload{
+		URL:                 u,
+		DestinationDir:      d,
+		ConcurrentDownloads: c,
 	}
-	s := r.TotalSize / int64(r.ConcurrentDownloads)
-	for i := 0; i < r.ConcurrentDownloads; i++ {
-		chunk := &FileChunk{
-			ChunkSize: s,
+	for i := 0; i < c; i++ {
+		fc := &FileChunk{
+			URL: u,
+			ID:  i,
 		}
-		r.Chunks = append(r.Chunks, chunk)
+		rd.Chunks = append(rd.Chunks, fc)
 	}
-	return nil
-}
-
-// Read will spawn a few goroutines that download the file in parallel
-func (r *RangeDownload) Read(buf []byte) (int, error) {
-	for _, f := range r.Chunks {
-		p := make(chan int)
-		go f.Download(&r.wg, p)
-	}
-	return 0, nil
+	return rd
 }
 
 // GetRanges will create a map containing the download ranges for all chunks
-func (f *RangeDownload) GetRanges() map[int][]int64 {
-	chunkSize := f.TotalSize / int64(len(f.Chunks))
-	remainder := f.TotalSize % int64(len(f.Chunks))
-	chunks := len(f.Chunks) - 1 // reserve a slot for the remainder bytes
+func (r *RangeDownload) GetRanges() map[int][]int64 {
+	chunkSize := r.Size / int64(len(r.Chunks))
+	remainder := r.Size % int64(len(r.Chunks))
+	chunks := len(r.Chunks) - 1 // reserve a slot for the remainder bytes
 
 	ranges := make(map[int][]int64, chunks)
 	var from, to int64
@@ -79,4 +70,14 @@ func (f *RangeDownload) GetRanges() map[int][]int64 {
 	to = to + chunkSize + remainder
 	ranges[chunks] = append(ranges[chunks], from, to)
 	return ranges
+}
+
+func (r *RangeDownload) Start() error {
+	chn := make(chan int64)
+	ranges := r.GetRanges()
+	for i := 0; i < len(r.Chunks); i++ {
+		start, end := ranges[i][0], ranges[i][0]
+		r.Chunks[i].Download(&r.wg, chn, start, end)
+	}
+	return nil
 }
