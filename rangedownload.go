@@ -1,12 +1,19 @@
 package rangedownload
 
 import (
+	"fmt"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"sync"
 )
 
 const MaxConcurrentDownloads = 16
 
-// FileChunk holds the information regarding the download of a file
+// FileChunk holds the information regarding the download of a chunk of a file
 type FileChunk struct {
 	URL       string
 	ID        int
@@ -30,13 +37,68 @@ type RangeDownload struct {
 // Download will download and write the content to a temporary file
 func (f *FileChunk) Download(wg *sync.WaitGroup, out chan<- int64, start, end int64) error {
 	defer wg.Done()
-	out <- 0
+	var written int64
+
+	client := &http.Client{}
+	r := fmt.Sprintf("bytes=%v-%v", start, end)
+	u, err := url.Parse(f.URL)
+	if err != nil {
+		return err
+	}
+
+	req := &http.Request{
+		Method:     "GET",
+		URL:        u,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     make(http.Header),
+		Body:       nil,
+	}
+	req.Header.Add("Range", r)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatalf("Could not perform request to: %v", f.URL)
+	}
+
+	size, err := strconv.ParseInt(resp.Header["Content-Length"][0], 10, 64)
+
+	abspath := os.Args[0] + string(filepath.Separator) + filepath.Base(u.Path) + fmt.Sprintf(".part%d", f.ID)
+	fp := filepath.Dir(abspath)
+	file, err := os.OpenFile(fp, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		log.Fatalf("Could not open file: %v", abspath)
+	}
+	defer file.Close()
+
+	// Start consuming the response body and write it to the chunk file
+	buf := make([]byte, 4*1024)
+	for {
+		data, err := resp.Body.Read(buf)
+		if data > 0 {
+			_, err := file.Write(buf)
+			if err != nil {
+				log.Fatalf("Could not write to file %v", abspath)
+			}
+			written += int64(data)
+			out <- int64(data)
+		}
+		if err != nil {
+			if err.Error() == "EOF" {
+				if size != written {
+					log.Fatal("Imcomplete download")
+				}
+				break
+			}
+		}
+
+	}
 	return nil
 }
 
 // NewRangeDownlaod initializes a RangeDownload struct with the url
 func NewRangeDownlaod(u string, c int, d string) *RangeDownload {
-	rd := &RangeDownload{
+	r := &RangeDownload{
 		URL:                 u,
 		DestinationDir:      d,
 		ConcurrentDownloads: c,
@@ -46,9 +108,9 @@ func NewRangeDownlaod(u string, c int, d string) *RangeDownload {
 			URL: u,
 			ID:  i,
 		}
-		rd.Chunks = append(rd.Chunks, fc)
+		r.Chunks = append(r.Chunks, fc)
 	}
-	return rd
+	return r
 }
 
 // GetRanges will create a map containing the download ranges for all chunks
@@ -72,12 +134,14 @@ func (r *RangeDownload) GetRanges() map[int][]int64 {
 	return ranges
 }
 
+// Start initiates the download
 func (r *RangeDownload) Start() error {
 	chn := make(chan int64)
 	ranges := r.GetRanges()
 	for i := 0; i < len(r.Chunks); i++ {
 		start, end := ranges[i][0], ranges[i][0]
-		r.Chunks[i].Download(&r.wg, chn, start, end)
+		r.wg.Add(1)
+		go r.Chunks[i].Download(&r.wg, chn, start, end)
 	}
 	return nil
 }

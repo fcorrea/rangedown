@@ -55,6 +55,20 @@ func (suite *RangeDownloadTestSuite) TestNewRangeDownlaod() {
 	suite.Equal("http://foo.com/bar.iso", rngd.Chunks[1].URL)
 }
 
+func (suite *RangeDownloadTestSuite) TestStart() {
+	out := make(chan int, 1)
+	rngd := NewRangeDownlaod("http://foo.com/bar.iso", 2, "tmp")
+	rngd.Size = 80
+	rngd.downloaded = out
+
+	// Block on out channel waiting for output
+	go func() {
+		<-out
+	}()
+
+	rngd.Start()
+}
+
 func MakeFileChunks(num int) []*FileChunk {
 	chunks := make([]*FileChunk, num)
 	for i := 0; i < num; i++ {
