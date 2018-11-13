@@ -7,17 +7,22 @@ import (
 	"strconv"
 )
 
+// Wrap the client to make it easier to test
+type HttpClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // Rangedownload holds information about a download
 type RangeDownload struct {
 	URL    string
-	client *http.Client
+	client HttpClient
 }
 
 // NewRangeDownload initializes a RangeDownload with the url
-func NewRangeDownload(url string) *RangeDownload {
+func NewRangeDownload(url string, client HttpClient) *RangeDownload {
 	return &RangeDownload{
 		URL:    url,
-		client: http.DefaultClient,
+		client: client,
 	}
 }
 
@@ -46,7 +51,7 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 	cl := resp.Header.Get("Content-Length")
 	size, err := strconv.ParseInt(cl, 10, 64)
 	if err != nil {
-		errchn <- fmt.Errorf("Could not parse %v", cl)
+		errchn <- fmt.Errorf("Could not parse: %v", cl)
 	}
 
 	// Start consuming the response body
@@ -58,11 +63,11 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 			// Check for possible end of file indicating end of the download
 			if err.Error() == "EOF" {
 				if size != int64(read) {
-					errchn <- fmt.Errorf("Corrupt downlaod")
+					errchn <- fmt.Errorf("Corrupt download")
 				}
 				break
 			} else {
-				errchn <- fmt.Errorf("Failed reading from response body")
+				errchn <- fmt.Errorf("Failed reading response body")
 			}
 		}
 		if br > 0 {
