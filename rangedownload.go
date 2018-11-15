@@ -2,6 +2,7 @@ package rangedownload
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -29,6 +30,8 @@ func NewRangeDownload(url string, client HttpClient) *RangeDownload {
 // Start starts downloading the requested URL and sending the read bytes into
 // the out channel
 func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
+	defer close(out)
+	defer close(errchn)
 	var read int64
 	// Build the request
 	url, err := url.Parse(r.URL)
@@ -55,25 +58,27 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 	}
 
 	// Start consuming the response body
-	buf := make([]byte, 4*1024)
+	buf := make([]byte, 16)
 	for {
 		// Read some bytes
 		br, err := resp.Body.Read(buf)
+		if br > 0 {
+			// Increment the bytes read and send the buffer out to be written
+			read += int64(br)
+			out <- buf[0:br]
+		}
 		if err != nil {
 			// Check for possible end of file indicating end of the download
-			if err.Error() == "EOF" {
-				if size != int64(read) {
+			if err == io.EOF {
+				if int64(read) == size {
+					// All good
+				} else {
 					errchn <- fmt.Errorf("Corrupt download")
 				}
-				break
 			} else {
 				errchn <- fmt.Errorf("Failed reading response body")
 			}
 		}
-		if br > 0 {
-			// Increment the bytes read and send the buffer out to be written
-			read += int64(br)
-			out <- buf
-		}
+
 	}
 }

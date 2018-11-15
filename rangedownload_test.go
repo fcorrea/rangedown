@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"testing"
 
@@ -47,6 +48,17 @@ func TestNewRangeDownload(t *testing.T) {
 
 	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
 	assert.Equal(rangedownload.URL, "http://foo.com/some.iso")
+}
+
+// Random strings for content generation. ref.: https://bit.ly/2OI5CfR
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func RandStringBytes(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
 
 func TestRangeDownloadStartBadURL(t *testing.T) {
@@ -208,4 +220,36 @@ func TestRangeDownloadStartBadResponseBody(t *testing.T) {
 	<-done
 
 	assert.Equal("Failed reading response body", result.Error())
+}
+
+func TestRangeDownloadStartReadsAllContent(t *testing.T) {
+	assert := assert.New(t)
+
+	content := RandStringBytes(20)
+	client := NewTestClient(func(req *http.Request) *http.Response {
+		resp := &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(content)),
+			Header:     make(http.Header),
+		}
+		resp.Header.Set("Content-Length", string(len(content)))
+		return resp
+	})
+
+	var result []byte
+	out := make(chan []byte, 1)
+	errchn := make(chan error, 1)
+	done := make(chan bool)
+	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+
+	go func() {
+		result = <-out
+		done <- true
+	}()
+
+	go rangedownload.Start(out, errchn)
+
+	<-done
+
+	assert.Equal(content, string(result))
 }
