@@ -43,13 +43,6 @@ func (f *ReaderError) Read(p []byte) (n int, err error) {
 	return 0, errors.New("Bad")
 }
 
-func TestNewRangeDownload(t *testing.T) {
-	assert := assert.New(t)
-
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
-	assert.Equal(rangedownload.URL, "http://foo.com/some.iso")
-}
-
 // Random strings for content generation. ref.: https://bit.ly/2OI5CfR
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -59,6 +52,13 @@ func RandStringBytes(n int) string {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func TestNewRangeDownload(t *testing.T) {
+	assert := assert.New(t)
+
+	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
+	assert.Equal(rangedownload.URL, "http://foo.com/some.iso")
 }
 
 func TestRangeDownloadStartBadURL(t *testing.T) {
@@ -124,38 +124,6 @@ func TestRangeDownloadStartFailedRequest(t *testing.T) {
 	<-done
 
 	assert.Equal("Could not perform a request to http://foo.com/some.iso", result.Error())
-}
-
-func TestRangeDownloadStartBadContentLength(t *testing.T) {
-	assert := assert.New(t)
-
-	client := NewTestClient(func(req *http.Request) *http.Response {
-		assert.Equal("http://foo.com/some.iso", req.URL.String())
-		resp := &http.Response{
-			StatusCode: 200,
-			Body:       ioutil.NopCloser(bytes.NewBufferString("OK")),
-			Header:     make(http.Header),
-		}
-		resp.Header.Set("Content-Length", "%%**")
-		return resp
-	})
-
-	var result error
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
-	done := make(chan bool)
-
-	go func() {
-		result = <-errchn
-		done <- true
-	}()
-
-	go rangedownload.Start(out, errchn)
-
-	<-done
-
-	assert.Equal("Could not parse: %%**", result.Error())
 }
 
 func TestRangeDownloadStartCorruptDownload(t *testing.T) {
@@ -225,14 +193,14 @@ func TestRangeDownloadStartBadResponseBody(t *testing.T) {
 func TestRangeDownloadStartReadsAllContent(t *testing.T) {
 	assert := assert.New(t)
 
-	content := RandStringBytes(20)
+	content := RandStringBytes(5 * 129)
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
 			Body:       ioutil.NopCloser(bytes.NewBufferString(content)),
 			Header:     make(http.Header),
 		}
-		resp.Header.Set("Content-Length", string(len(content)))
+		resp.ContentLength = int64(len(content))
 		return resp
 	})
 
@@ -242,12 +210,14 @@ func TestRangeDownloadStartReadsAllContent(t *testing.T) {
 	done := make(chan bool)
 	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
 
+	go rangedownload.Start(out, errchn)
+
 	go func() {
-		result = <-out
+		for v := range out {
+			result = append(result, v...)
+		}
 		done <- true
 	}()
-
-	go rangedownload.Start(out, errchn)
 
 	<-done
 

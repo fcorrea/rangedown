@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 )
 
 // Wrap the client to make it easier to test
@@ -51,16 +50,10 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 	}
 	defer resp.Body.Close()
 
-	cl := resp.Header.Get("Content-Length")
-	size, err := strconv.ParseInt(cl, 10, 64)
-	if err != nil {
-		errchn <- fmt.Errorf("Could not parse: %v", cl)
-	}
-
 	// Start consuming the response body
-	buf := make([]byte, 16)
+	size := resp.ContentLength
 	for {
-		// Read some bytes
+		buf := make([]byte, 4*1024)
 		br, err := resp.Body.Read(buf)
 		if br > 0 {
 			// Increment the bytes read and send the buffer out to be written
@@ -70,15 +63,13 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 		if err != nil {
 			// Check for possible end of file indicating end of the download
 			if err == io.EOF {
-				if int64(read) == size {
-					// All good
-				} else {
+				if read != size {
 					errchn <- fmt.Errorf("Corrupt download")
 				}
+				break
 			} else {
 				errchn <- fmt.Errorf("Failed reading response body")
 			}
 		}
-
 	}
 }
