@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,5 +222,48 @@ func TestRangeDownloadStartReadsAllContent(t *testing.T) {
 
 	<-done
 
+	assert.Equal(content, string(result))
+}
+
+func TestRangeDownloadWrite(t *testing.T) {
+	assert := assert.New(t)
+
+	content := RandStringBytes(5 * 129)
+	client := NewTestClient(func(req *http.Request) *http.Response {
+		resp := &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(content)),
+			Header:     make(http.Header),
+		}
+		resp.ContentLength = int64(len(content))
+		return resp
+	})
+
+	// Create a temp file to be injected
+	f, err := ioutil.TempFile("", "")
+	if err != nil {
+		panic("could not create temp file")
+	}
+	path := f.Name()
+	defer f.Close()
+	defer os.Remove(path)
+
+	out := make(chan []byte, 1)
+	errchn := make(chan error, 1)
+	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload.file = f
+
+	go rangedownload.Start(out, errchn)
+	written, err := rangedownload.Write(out)
+	if err != nil {
+		panic("could not write file " + err.Error())
+	}
+
+	result, err := ioutil.ReadFile(path)
+	if err != nil {
+		panic("could not read file " + err.Error())
+	}
+
+	assert.Equal(int64(len(content)), written)
 	assert.Equal(content, string(result))
 }

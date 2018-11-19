@@ -3,8 +3,10 @@ package rangedownload
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
+	"os"
 )
 
 // Wrap the client to make it easier to test
@@ -16,6 +18,7 @@ type HttpClient interface {
 type RangeDownload struct {
 	URL    string
 	client HttpClient
+	file   *os.File
 }
 
 // NewRangeDownload initializes a RangeDownload with the url
@@ -26,8 +29,8 @@ func NewRangeDownload(url string, client HttpClient) *RangeDownload {
 	}
 }
 
-// Start starts downloading the requested URL and sending the read bytes into
-// the out channel
+// Start starts downloading the requested URL and as soon as data start being read,
+// it sends it in the out channel
 func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(out)
 	defer close(errchn)
@@ -72,4 +75,17 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 			}
 		}
 	}
+}
+
+// Write will read from data channel and write it to the file
+func (r *RangeDownload) Write(data <-chan []byte) (int64, error) {
+	var written int64
+	for d := range data {
+		dw, err := r.file.Write(d)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+		written += int64(dw)
+	}
+	return written, nil
 }
