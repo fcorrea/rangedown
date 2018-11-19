@@ -55,6 +55,13 @@ func RandStringBytes(n int) string {
 	return string(b)
 }
 
+// FakeFileWithWriteError returns an Error when Write is called
+type FakeFileWithWriteError struct{}
+
+func (f *FakeFileWithWriteError) Write(b []byte) (int, error) {
+	return 0, errors.New("Bad")
+}
+
 func TestNewRangeDownload(t *testing.T) {
 	assert := assert.New(t)
 
@@ -251,9 +258,10 @@ func TestRangeDownloadWrite(t *testing.T) {
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
-	rangedownload.file = f
+	rangedownload.writer = f
 
 	go rangedownload.Start(out, errchn)
+
 	written, err := rangedownload.Write(out)
 	if err != nil {
 		panic("could not write file " + err.Error())
@@ -266,4 +274,32 @@ func TestRangeDownloadWrite(t *testing.T) {
 
 	assert.Equal(int64(len(content)), written)
 	assert.Equal(content, string(result))
+}
+
+func TestRangeDownloadWriteError(t *testing.T) {
+	assert := assert.New(t)
+
+	content := RandStringBytes(5 * 129)
+	client := NewTestClient(func(req *http.Request) *http.Response {
+		resp := &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(content)),
+			Header:     make(http.Header),
+		}
+		resp.ContentLength = int64(len(content))
+		return resp
+	})
+
+	f := &FakeFileWithWriteError{}
+
+	out := make(chan []byte, 1)
+	errchn := make(chan error, 1)
+	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload.writer = f
+
+	go rangedownload.Start(out, errchn)
+
+	written, err := rangedownload.Write(out)
+	assert.Equal(int64(0), written)
+	assert.Equal("Bad", err.Error())
 }

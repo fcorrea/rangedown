@@ -3,10 +3,8 @@ package rangedownload
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
-	"os"
 )
 
 // Wrap the client to make it easier to test
@@ -18,7 +16,7 @@ type HttpClient interface {
 type RangeDownload struct {
 	URL    string
 	client HttpClient
-	file   *os.File
+	writer io.Writer
 }
 
 // NewRangeDownload initializes a RangeDownload with the url
@@ -81,9 +79,9 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 func (r *RangeDownload) Write(data <-chan []byte) (int64, error) {
 	var written int64
 	for d := range data {
-		dw, err := r.file.Write(d)
+		dw, err := r.writer.Write(d)
 		if err != nil {
-			log.Fatalf(err.Error())
+			return 0, err
 		}
 		written += int64(dw)
 	}
