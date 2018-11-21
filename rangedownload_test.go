@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -273,8 +274,9 @@ func TestRangeDownloadWrite(t *testing.T) {
 
 func TestRangeDownloadWriteError(t *testing.T) {
 	assert := assert.New(t)
+	rand.Seed(time.Now().UTC().UnixNano())
 
-	content := RandStringBytes(5 * 129)
+	content := RandStringBytes(5 * int(rand.Int31n(1000)))
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
