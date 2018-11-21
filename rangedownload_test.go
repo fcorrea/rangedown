@@ -66,29 +66,24 @@ func TestNewRangeDownload(t *testing.T) {
 	assert := assert.New(t)
 
 	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
-	assert.Equal(rangedownload.URL, "http://foo.com/some.iso")
+	assert.Equal(rangedownload.URL.Scheme, "http")
+	assert.Equal(rangedownload.URL.Host, "foo.com")
+	assert.Equal(rangedownload.URL.Path, "/some.iso")
 }
 
-func TestRangeDownloadStartBadURL(t *testing.T) {
+func TestNewRangeDownloadBadURL(t *testing.T) {
 	assert := assert.New(t)
 
-	var result error
-	rangedownload := NewRangeDownload("123%45%6", http.DefaultClient)
-	out := make(chan []byte, 1)
-	errchn := make(chan error)
-	done := make(chan bool)
+	assert.Panics(func() {
+		NewRangeDownload("123%45%6", http.DefaultClient)
+	})
+}
 
-	go func() {
-		result = <-errchn
-		done <- true
-	}()
+func TestNewRangeDownloadSetsFileName(t *testing.T) {
+	assert := assert.New(t)
 
-	go rangedownload.Start(out, errchn)
-
-	<-done
-
-	assert.Equal("Could not parse URL: 123%45%6", result.Error())
-
+	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
+	assert.Equal(rangedownload.fileName, "some.iso")
 }
 
 func TestRangeDownloadStartCorrectURL(t *testing.T) {

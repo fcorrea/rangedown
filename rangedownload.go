@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path/filepath"
 )
 
 // Wrap the client to make it easier to test
@@ -14,16 +15,23 @@ type HttpClient interface {
 
 // Rangedownload holds information about a download
 type RangeDownload struct {
-	URL    string
-	client HttpClient
-	writer io.Writer
+	URL      *url.URL
+	client   HttpClient
+	writer   io.Writer
+	fileName string
 }
 
-// NewRangeDownload initializes a RangeDownload with the url
-func NewRangeDownload(url string, client HttpClient) *RangeDownload {
+// NewRangeDownload initializes a RangeDownload with downloadURL
+func NewRangeDownload(downloadURL string, client HttpClient) *RangeDownload {
+	p, err := url.Parse(downloadURL)
+	if err != nil {
+		panic("Could not parse URL: " + downloadURL)
+	}
+
 	return &RangeDownload{
-		URL:    url,
-		client: client,
+		URL:      p,
+		client:   client,
+		fileName: filepath.Base(p.Path),
 	}
 }
 
@@ -34,12 +42,8 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(errchn)
 	var read int64
 	// Build the request
-	url, err := url.Parse(r.URL)
-	if err != nil {
-		errchn <- fmt.Errorf("Could not parse URL: %v", r.URL)
-	}
 	req := &http.Request{
-		URL:    url,
+		URL:    r.URL,
 		Method: "GET",
 		Header: make(http.Header),
 	}
