@@ -1,4 +1,4 @@
-package rangedownload
+package rangy
 
 import (
 	"bytes"
@@ -63,31 +63,31 @@ func (f *FakeFileWithWriteError) Write(b []byte) (int, error) {
 	return 0, errors.New("Bad")
 }
 
-func TestNewRangeDownload(t *testing.T) {
+func TestNewRangyDownload(t *testing.T) {
 	assert := assert.New(t)
 
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", http.DefaultClient)
 	assert.Equal(rangedownload.URL.Scheme, "http")
 	assert.Equal(rangedownload.URL.Host, "foo.com")
 	assert.Equal(rangedownload.URL.Path, "/some.iso")
 }
 
-func TestNewRangeDownloadBadURL(t *testing.T) {
+func TestNewRangyDownloadBadURL(t *testing.T) {
 	assert := assert.New(t)
 
 	assert.Panics(func() {
-		NewRangeDownload("123%45%6", http.DefaultClient)
+		NewRangyDownload("123%45%6", http.DefaultClient)
 	})
 }
 
-func TestNewRangeDownloadSetsFileName(t *testing.T) {
+func TestNewRangyDownloadSetsFileName(t *testing.T) {
 	assert := assert.New(t)
 
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", http.DefaultClient)
 	assert.Equal(rangedownload.fileName, "some.iso")
 }
 
-func TestRangeDownloadStartCorrectURL(t *testing.T) {
+func TestRangyDownloadStartCorrectURL(t *testing.T) {
 	assert := assert.New(t)
 
 	client := NewTestClient(func(req *http.Request) *http.Response {
@@ -101,19 +101,19 @@ func TestRangeDownloadStartCorrectURL(t *testing.T) {
 		return resp
 	})
 
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", http.DefaultClient)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", http.DefaultClient)
 	rangedownload.client = client
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	go rangedownload.Start(out, errchn)
 }
 
-func TestRangeDownloadStartFailedRequest(t *testing.T) {
+func TestRangyDownloadStartFailedRequest(t *testing.T) {
 	assert := assert.New(t)
 
 	var result error
 	client := &ClientError{}
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	done := make(chan bool)
@@ -130,7 +130,7 @@ func TestRangeDownloadStartFailedRequest(t *testing.T) {
 	assert.Equal("Could not perform a request to http://foo.com/some.iso", result.Error())
 }
 
-func TestRangeDownloadStartCorruptDownload(t *testing.T) {
+func TestRangyDownloadStartCorruptDownload(t *testing.T) {
 	assert := assert.New(t)
 
 	client := NewTestClient(func(req *http.Request) *http.Response {
@@ -145,7 +145,7 @@ func TestRangeDownloadStartCorruptDownload(t *testing.T) {
 	})
 
 	var result error
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	done := make(chan bool)
@@ -162,7 +162,7 @@ func TestRangeDownloadStartCorruptDownload(t *testing.T) {
 	assert.Equal("Corrupt download", result.Error())
 }
 
-func TestRangeDownloadStartBadResponseBody(t *testing.T) {
+func TestRangyDownloadStartBadResponseBody(t *testing.T) {
 	assert := assert.New(t)
 
 	client := NewTestClient(func(req *http.Request) *http.Response {
@@ -177,7 +177,7 @@ func TestRangeDownloadStartBadResponseBody(t *testing.T) {
 	})
 
 	var result error
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	done := make(chan bool)
@@ -194,7 +194,7 @@ func TestRangeDownloadStartBadResponseBody(t *testing.T) {
 	assert.Equal("Failed reading response body", result.Error())
 }
 
-func TestRangeDownloadStartReadsAllContent(t *testing.T) {
+func TestRangyDownloadStartReadsAllContent(t *testing.T) {
 	assert := assert.New(t)
 
 	content := RandStringBytes(5 * 129)
@@ -212,7 +212,7 @@ func TestRangeDownloadStartReadsAllContent(t *testing.T) {
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	done := make(chan bool)
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 
 	go rangedownload.Start(out, errchn)
 
@@ -228,7 +228,7 @@ func TestRangeDownloadStartReadsAllContent(t *testing.T) {
 	assert.Equal(content, string(result))
 }
 
-func TestRangeDownloadWrite(t *testing.T) {
+func TestRangyDownloadWrite(t *testing.T) {
 	assert := assert.New(t)
 
 	content := RandStringBytes(5 * 129)
@@ -253,7 +253,7 @@ func TestRangeDownloadWrite(t *testing.T) {
 
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 	rangedownload.writer = f
 
 	go rangedownload.Start(out, errchn)
@@ -272,7 +272,7 @@ func TestRangeDownloadWrite(t *testing.T) {
 	assert.Equal(content, string(result))
 }
 
-func TestRangeDownloadWriteError(t *testing.T) {
+func TestRangyDownloadWriteError(t *testing.T) {
 	assert := assert.New(t)
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -291,7 +291,7 @@ func TestRangeDownloadWriteError(t *testing.T) {
 
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
-	rangedownload := NewRangeDownload("http://foo.com/some.iso", client)
+	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
 	rangedownload.writer = f
 
 	go rangedownload.Start(out, errchn)

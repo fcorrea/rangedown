@@ -1,4 +1,4 @@
-package rangedownload
+package rangy
 
 import (
 	"fmt"
@@ -13,22 +13,22 @@ type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Rangedownload holds information about a download
-type RangeDownload struct {
+// Rangy holds information about a download
+type RangyDownload struct {
 	URL      *url.URL
 	client   HttpClient
 	writer   io.Writer
 	fileName string
 }
 
-// NewRangeDownload initializes a RangeDownload with downloadURL
-func NewRangeDownload(downloadURL string, client HttpClient) *RangeDownload {
+// NewRangyDownload initializes a RangyDownload with downloadURL
+func NewRangyDownload(downloadURL string, client HttpClient) *RangyDownload {
 	p, err := url.Parse(downloadURL)
 	if err != nil {
 		panic("Could not parse URL: " + downloadURL)
 	}
 
-	return &RangeDownload{
+	return &RangyDownload{
 		URL:      p,
 		client:   client,
 		fileName: filepath.Base(p.Path),
@@ -37,7 +37,7 @@ func NewRangeDownload(downloadURL string, client HttpClient) *RangeDownload {
 
 // Start starts downloading the requested URL and as soon as data start being read,
 // it sends it in the out channel
-func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
+func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(out)
 	defer close(errchn)
 	var read int64
@@ -80,7 +80,7 @@ func (r *RangeDownload) Start(out chan<- []byte, errchn chan<- error) {
 }
 
 // Write will read from data channel and write it to the file
-func (r *RangeDownload) Write(data <-chan []byte) (int64, error) {
+func (r *RangyDownload) Write(data <-chan []byte) (int64, error) {
 	var written int64
 	for d := range data {
 		dw, err := r.writer.Write(d)
