@@ -1,10 +1,12 @@
 package rangy
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"path/filepath"
 )
 
@@ -15,10 +17,10 @@ type HttpClient interface {
 
 // Rangy holds information about a download
 type RangyDownload struct {
-	URL      *url.URL
-	client   HttpClient
-	writer   io.Writer
-	fileName string
+	URL         *url.URL
+	client      HttpClient
+	writeCloser io.WriteCloser
+	FileName    string
 }
 
 // NewRangyDownload initializes a RangyDownload with downloadURL
@@ -31,7 +33,7 @@ func NewRangyDownload(downloadURL string, client HttpClient) *RangyDownload {
 	return &RangyDownload{
 		URL:      p,
 		client:   client,
-		fileName: filepath.Base(p.Path),
+		FileName: filepath.Base(p.Path),
 	}
 }
 
@@ -83,11 +85,22 @@ func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 func (r *RangyDownload) Write(data <-chan []byte) (int64, error) {
 	var written int64
 	for d := range data {
-		dw, err := r.writer.Write(d)
+		dw, err := r.writeCloser.Write(d)
 		if err != nil {
 			return 0, err
 		}
 		written += int64(dw)
 	}
+	defer r.writeCloser.Close()
 	return written, nil
+}
+
+// SetupWriter creates a file using the file name stored in RangyDownload
+func (r *RangyDownload) SetupWriter() error {
+	f, err := os.Create(r.FileName)
+	if err != nil {
+		return errors.New("Could not create " + r.FileName)
+	}
+	r.writeCloser = f
+	return nil
 }

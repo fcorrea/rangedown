@@ -63,6 +63,10 @@ func (f *FakeFileWithWriteError) Write(b []byte) (int, error) {
 	return 0, errors.New("Bad")
 }
 
+func (f *FakeFileWithWriteError) Close() error {
+	return nil
+}
+
 func TestNewRangyDownload(t *testing.T) {
 	assert := assert.New(t)
 
@@ -84,7 +88,7 @@ func TestNewRangyDownloadSetsFileName(t *testing.T) {
 	assert := assert.New(t)
 
 	rangedownload := NewRangyDownload("http://foo.com/some.iso", http.DefaultClient)
-	assert.Equal(rangedownload.fileName, "some.iso")
+	assert.Equal(rangedownload.FileName, "some.iso")
 }
 
 func TestRangyDownloadStartCorrectURL(t *testing.T) {
@@ -254,7 +258,7 @@ func TestRangyDownloadWrite(t *testing.T) {
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
-	rangedownload.writer = f
+	rangedownload.writeCloser = f
 
 	go rangedownload.Start(out, errchn)
 
@@ -292,7 +296,7 @@ func TestRangyDownloadWriteError(t *testing.T) {
 	out := make(chan []byte, 1)
 	errchn := make(chan error, 1)
 	rangedownload := NewRangyDownload("http://foo.com/some.iso", client)
-	rangedownload.writer = f
+	rangedownload.writeCloser = f
 
 	go rangedownload.Start(out, errchn)
 
