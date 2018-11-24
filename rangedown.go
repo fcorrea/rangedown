@@ -1,4 +1,4 @@
-package rangy
+package rangedown
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 )
 
-// Rangy holds information about a download
-type RangyDownload struct {
+// Download holds information about a download
+type Download struct {
 	URL      *url.URL
 	File     *os.File
 	FileName string
@@ -23,16 +23,16 @@ type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// FileOpener has the same signature of os.OpenFile and helps with unit testing
+// FileOpener has the same method signature of os.OpenFile and helps with unit testing
 type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
-// NewRangyDownload initializes a RangyDownload with downloadURL, a default http client and an FileOpener
-func NewRangyDownload(downloadURL string) (*RangyDownload, error) {
+// NewDownload initializes a Download with downloadURL, a default http client and an FileOpener
+func NewDownload(downloadURL string) (*Download, error) {
 	p, err := url.Parse(downloadURL)
 	if err != nil {
 		return nil, err
 	}
-	return &RangyDownload{
+	return &Download{
 		URL:    p,
 		client: http.DefaultClient,
 		opener: os.OpenFile,
@@ -41,7 +41,7 @@ func NewRangyDownload(downloadURL string) (*RangyDownload, error) {
 
 // Start starts downloading the requested URL and as soon as data start being read,
 // it sends it out in the out channel
-func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
+func (r *Download) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(out)
 	defer close(errchn)
 
@@ -86,7 +86,7 @@ func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 }
 
 // Write will read from data channel and write it to the file
-func (r *RangyDownload) Write(data <-chan []byte) (int64, error) {
+func (r *Download) Write(data <-chan []byte) (int64, error) {
 	var written int64
 
 	// Setup file for download
