@@ -26,7 +26,7 @@ type HttpClient interface {
 // FileOpener has the same signature of os.OpenFile and helps with unit testing
 type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
-// NewRangyDownload initializes a RangyDownload with downloadURL and set up the download file.
+// NewRangyDownload initializes a RangyDownload with downloadURL, a default http client and an FileOpener
 func NewRangyDownload(downloadURL string) (*RangyDownload, error) {
 	p, err := url.Parse(downloadURL)
 	if err != nil {
@@ -40,7 +40,7 @@ func NewRangyDownload(downloadURL string) (*RangyDownload, error) {
 }
 
 // Start starts downloading the requested URL and as soon as data start being read,
-// it sends it in the out channel
+// it sends it out in the out channel
 func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(out)
 	defer close(errchn)
