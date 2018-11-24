@@ -1,7 +1,6 @@
 package rangy
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,31 +9,34 @@ import (
 	"path/filepath"
 )
 
+// Rangy holds information about a download
+type RangyDownload struct {
+	URL      *url.URL
+	File     *os.File
+	FileName string
+	client   HttpClient
+	opener   FileOpener
+}
+
 // Wrap the client to make it easier to test
 type HttpClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-// Rangy holds information about a download
-type RangyDownload struct {
-	URL         *url.URL
-	client      HttpClient
-	writeCloser io.WriteCloser
-	FileName    string
-}
+// FileOpener has the same signature of os.OpenFile and helps with unit testing
+type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
-// NewRangyDownload initializes a RangyDownload with downloadURL
-func NewRangyDownload(downloadURL string, client HttpClient) *RangyDownload {
+// NewRangyDownload initializes a RangyDownload with downloadURL and set up the download file.
+func NewRangyDownload(downloadURL string) (*RangyDownload, error) {
 	p, err := url.Parse(downloadURL)
 	if err != nil {
-		panic("Could not parse URL: " + downloadURL)
+		return nil, err
 	}
-
 	return &RangyDownload{
-		URL:      p,
-		client:   client,
-		FileName: filepath.Base(p.Path),
-	}
+		URL:    p,
+		client: http.DefaultClient,
+		opener: os.OpenFile,
+	}, nil
 }
 
 // Start starts downloading the requested URL and as soon as data start being read,
@@ -42,7 +44,9 @@ func NewRangyDownload(downloadURL string, client HttpClient) *RangyDownload {
 func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 	defer close(out)
 	defer close(errchn)
+
 	var read int64
+
 	// Build the request
 	req := &http.Request{
 		URL:    r.URL,
@@ -84,23 +88,23 @@ func (r *RangyDownload) Start(out chan<- []byte, errchn chan<- error) {
 // Write will read from data channel and write it to the file
 func (r *RangyDownload) Write(data <-chan []byte) (int64, error) {
 	var written int64
+
+	// Setup file for download
+	fileName := filepath.Base(r.URL.Path)
+	r.FileName = fileName
+	f, err := r.opener(fileName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
+	if err != nil {
+		return 0, err
+	}
+	r.File = f
+
 	for d := range data {
-		dw, err := r.writeCloser.Write(d)
+		dw, err := r.File.Write(d)
 		if err != nil {
 			return 0, err
 		}
 		written += int64(dw)
 	}
-	defer r.writeCloser.Close()
+	defer r.File.Close()
 	return written, nil
-}
-
-// SetupWriter creates a file using the file name stored in RangyDownload
-func (r *RangyDownload) SetupWriter() error {
-	f, err := os.Create(r.FileName)
-	if err != nil {
-		return errors.New("Could not create " + r.FileName)
-	}
-	r.writeCloser = f
-	return nil
 }
