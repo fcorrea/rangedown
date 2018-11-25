@@ -56,7 +56,7 @@ func RandStringBytes(n int) string {
 	return string(b)
 }
 
-// OpenTempFile is an FileOpener that creates a temp file instead of a local file
+// OpenTempFile is a FileOpener that creates a temp file instead of a local file
 func OpenTempFile(name string, flags int, perm os.FileMode) (*os.File, error) {
 	f, err := ioutil.TempFile("", name)
 	if err != nil {
@@ -71,6 +71,7 @@ func FileOpenerWithError(name string, flags int, perm os.FileMode) (*os.File, er
 }
 
 // FileOpenerWithWriteError emulates a FileOpener that returns a closed temp file
+// so any calls to write will return an error
 func FileOpenerWithWriteError(name string, flags int, perm os.FileMode) (*os.File, error) {
 	f, _ := ioutil.TempFile("", name)
 	defer f.Close()
@@ -128,7 +129,6 @@ func TestDownloadStartFailedRequest(t *testing.T) {
 	assert := assert.New(t)
 
 	client := &ClientError{}
-
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
 	var result error
@@ -217,7 +217,8 @@ func TestDownloadStartBadResponseBody(t *testing.T) {
 func TestDownloadStartReadsAllContent(t *testing.T) {
 	assert := assert.New(t)
 
-	content := RandStringBytes(5 * 129)
+	rand.Seed(time.Now().UTC().UnixNano())
+	content := RandStringBytes(5 * int(rand.Int31n(1000)))
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
@@ -252,7 +253,8 @@ func TestDownloadStartReadsAllContent(t *testing.T) {
 func TestDownloadWrite(t *testing.T) {
 	assert := assert.New(t)
 
-	content := RandStringBytes(5 * 129)
+	rand.Seed(time.Now().UTC().UnixNano())
+	content := RandStringBytes(5 * int(rand.Int31n(1000)))
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
@@ -287,9 +289,8 @@ func TestDownloadWrite(t *testing.T) {
 
 func TestDownloadWriteOpenFileError(t *testing.T) {
 	assert := assert.New(t)
-	rand.Seed(time.Now().UTC().UnixNano())
 
-	content := RandStringBytes(5 * int(rand.Int31n(1000)))
+	content := RandStringBytes(10)
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
@@ -315,9 +316,8 @@ func TestDownloadWriteOpenFileError(t *testing.T) {
 
 func TestDownloadWriteError(t *testing.T) {
 	assert := assert.New(t)
-	rand.Seed(time.Now().UTC().UnixNano())
 
-	content := RandStringBytes(5 * int(rand.Int31n(1000)))
+	content := RandStringBytes(10)
 	client := NewTestClient(func(req *http.Request) *http.Response {
 		resp := &http.Response{
 			StatusCode: 200,
