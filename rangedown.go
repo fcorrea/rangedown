@@ -91,7 +91,7 @@ func (r *Download) Start() {
 }
 
 // Write will read from data channel and write it to the file
-func (r *Download) Write() (int64, error) {
+func (r *Download) write() (int64, error) {
 	var written int64
 
 	// Setup file for download
@@ -111,5 +111,14 @@ func (r *Download) Write() (int64, error) {
 		written += int64(dw)
 	}
 	defer r.File.Close()
+	return written, nil
+}
+
+// Wait calls write internally and check for errors.
+func (r *Download) Wait() (int64, error) {
+	written, err := r.write()
+	if err != nil {
+		return 0, err
+	}
 	return written, nil
 }

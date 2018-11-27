@@ -241,7 +241,7 @@ func TestDownloadStartReadsAllContent(t *testing.T) {
 	assert.Equal(content, string(result))
 }
 
-func TestDownloadWrite(t *testing.T) {
+func TestDownloadWait(t *testing.T) {
 	assert := assert.New(t)
 
 	rand.Seed(time.Now().UTC().UnixNano())
@@ -260,15 +260,9 @@ func TestDownloadWrite(t *testing.T) {
 
 	download.Start()
 
-	written, err := download.Write()
-	if err != nil {
-		panic("could not write file " + err.Error())
-	}
+	written, _ := download.Wait()
 
-	result, err := ioutil.ReadFile(download.File.Name())
-	if err != nil {
-		panic("could not read file " + err.Error())
-	}
+	result, _ := ioutil.ReadFile(download.File.Name())
 
 	assert.Equal("some.iso", download.FileName)
 	assert.Equal(int64(len(content)), written)
@@ -276,7 +270,7 @@ func TestDownloadWrite(t *testing.T) {
 	defer os.Remove(download.File.Name())
 }
 
-func TestDownloadWriteOpenFileError(t *testing.T) {
+func TestDownloadWaitOpenFileError(t *testing.T) {
 	assert := assert.New(t)
 
 	content := RandStringBytes(10)
@@ -295,7 +289,7 @@ func TestDownloadWriteOpenFileError(t *testing.T) {
 
 	download.Start()
 
-	written, err := download.Write()
+	written, err := download.Wait()
 	assert.Equal(int64(0), written)
 	assert.Equal("A file error", err.Error())
 }
@@ -319,7 +313,7 @@ func TestDownloadWriteError(t *testing.T) {
 
 	download.Start()
 
-	written, err := download.Write()
+	written, err := download.Wait()
 	assert.Equal(int64(0), written)
 	assert.NotNil(err)
 }
