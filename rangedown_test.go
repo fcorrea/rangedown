@@ -82,6 +82,8 @@ func NewTestableDownload(url string, client HttpClient) *Download {
 	download, _ := NewDownload(url)
 	download.client = client
 	download.opener = OpenTempFile
+	download.outChn = make(chan []byte, 1)
+	download.errChn = make(chan error, 1)
 	return download
 }
 
@@ -119,10 +121,7 @@ func TestDownloadStartCorrectURL(t *testing.T) {
 
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
-
-	go download.Start(out, errchn)
+	download.Start()
 }
 
 func TestDownloadStartFailedRequest(t *testing.T) {
@@ -132,16 +131,14 @@ func TestDownloadStartFailedRequest(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
 	var result error
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
 	done := make(chan bool)
 
 	go func() {
-		result = <-errchn
+		result = <-download.errChn
 		done <- true
 	}()
 
-	go download.Start(out, errchn)
+	download.Start()
 
 	<-done
 
@@ -165,16 +162,14 @@ func TestDownloadStartCorruptDownload(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
 	var result error
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
 	done := make(chan bool)
 
 	go func() {
-		result = <-errchn
+		result = <-download.errChn
 		done <- true
 	}()
 
-	go download.Start(out, errchn)
+	download.Start()
 
 	<-done
 
@@ -198,16 +193,14 @@ func TestDownloadStartBadResponseBody(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
 	var result error
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
 	done := make(chan bool)
 
 	go func() {
-		result = <-errchn
+		result = <-download.errChn
 		done <- true
 	}()
 
-	go download.Start(out, errchn)
+	download.Start()
 
 	<-done
 
@@ -232,14 +225,12 @@ func TestDownloadStartReadsAllContent(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
 	var result []byte
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
 	done := make(chan bool)
 
-	go download.Start(out, errchn)
+	download.Start()
 
 	go func() {
-		for v := range out {
+		for v := range download.outChn {
 			result = append(result, v...)
 		}
 		done <- true
@@ -267,11 +258,9 @@ func TestDownloadWrite(t *testing.T) {
 
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
-	go download.Start(out, errchn)
+	download.Start()
 
-	written, err := download.Write(out)
+	written, err := download.Write()
 	if err != nil {
 		panic("could not write file " + err.Error())
 	}
@@ -304,12 +293,9 @@ func TestDownloadWriteOpenFileError(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 	download.opener = FileOpenerWithError
 
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
+	download.Start()
 
-	go download.Start(out, errchn)
-
-	written, err := download.Write(out)
+	written, err := download.Write()
 	assert.Equal(int64(0), written)
 	assert.Equal("A file error", err.Error())
 }
@@ -331,12 +317,9 @@ func TestDownloadWriteError(t *testing.T) {
 	download := NewTestableDownload("http://foo.com/some.iso", client)
 	download.opener = FileOpenerWithWriteError
 
-	out := make(chan []byte, 1)
-	errchn := make(chan error, 1)
+	download.Start()
 
-	go download.Start(out, errchn)
-
-	written, err := download.Write(out)
+	written, err := download.Write()
 	assert.Equal(int64(0), written)
 	assert.NotNil(err)
 }

@@ -16,6 +16,8 @@ type Download struct {
 	FileName string
 	client   HttpClient
 	opener   FileOpener
+	outChn   chan []byte
+	errChn   chan error
 }
 
 // Wrap the client to make it easier to test
@@ -36,15 +38,14 @@ func NewDownload(downloadURL string) (*Download, error) {
 		URL:    p,
 		client: http.DefaultClient,
 		opener: os.OpenFile,
+		outChn: make(chan []byte),
+		errChn: make(chan error),
 	}, nil
 }
 
 // Start starts downloading the requested URL and as soon as data start being read,
-// it sends it out in the out channel
-func (r *Download) Start(out chan<- []byte, errchn chan<- error) {
-	defer close(out)
-	defer close(errchn)
-
+// it sends it out in the outChn channel
+func (r *Download) Start() {
 	var read int64
 
 	// Build the request
@@ -57,36 +58,40 @@ func (r *Download) Start(out chan<- []byte, errchn chan<- error) {
 	// Perform the request
 	resp, err := r.client.Do(req)
 	if err != nil {
-		errchn <- fmt.Errorf("Could not perform a request to %v", r.URL)
+		r.errChn <- fmt.Errorf("Could not perform a request to %v", r.URL)
 	}
 	defer resp.Body.Close()
 
 	// Start consuming the response body
 	size := resp.ContentLength
-	for {
-		buf := make([]byte, 4*1024)
-		br, err := resp.Body.Read(buf)
-		if br > 0 {
-			// Increment the bytes read and send the buffer out to be written
-			read += int64(br)
-			out <- buf[0:br]
-		}
-		if err != nil {
-			// Check for possible end of file indicating end of the download
-			if err == io.EOF {
-				if read != size {
-					errchn <- fmt.Errorf("Corrupt download")
+	go func() {
+		defer close(r.outChn)
+		defer close(r.errChn)
+		for {
+			buf := make([]byte, 4*1024)
+			br, err := resp.Body.Read(buf)
+			if br > 0 {
+				// Increment the bytes read and send the buffer out to be written
+				read += int64(br)
+				r.outChn <- buf[0:br]
+			}
+			if err != nil {
+				// Check for possible end of file indicating end of the download
+				if err == io.EOF {
+					if read != size {
+						r.errChn <- fmt.Errorf("Corrupt download")
+					}
+					break
+				} else {
+					r.errChn <- fmt.Errorf("Failed reading response body")
 				}
-				break
-			} else {
-				errchn <- fmt.Errorf("Failed reading response body")
 			}
 		}
-	}
+	}()
 }
 
 // Write will read from data channel and write it to the file
-func (r *Download) Write(data <-chan []byte) (int64, error) {
+func (r *Download) Write() (int64, error) {
 	var written int64
 
 	// Setup file for download
@@ -98,7 +103,7 @@ func (r *Download) Write(data <-chan []byte) (int64, error) {
 	}
 	r.File = f
 
-	for d := range data {
+	for d := range r.outChn {
 		dw, err := r.File.Write(d)
 		if err != nil {
 			return 0, err
