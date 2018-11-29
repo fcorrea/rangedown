@@ -260,12 +260,15 @@ func TestDownloadWait(t *testing.T) {
 
 	download.Start()
 
-	written, _ := download.Wait()
+	err := download.Wait()
+	if err != nil {
+		panic(err)
+	}
 
 	result, _ := ioutil.ReadFile(download.File.Name())
 
 	assert.Equal("some.iso", download.FileName)
-	assert.Equal(int64(len(content)), written)
+	assert.Equal(int64(len(content)), download.Written)
 	assert.Equal(content, string(result))
 	defer os.Remove(download.File.Name())
 }
@@ -289,9 +292,9 @@ func TestDownloadWaitOpenFileError(t *testing.T) {
 
 	download.Start()
 
-	written, err := download.Wait()
-	assert.Equal(int64(0), written)
+	err := download.Wait()
 	assert.Equal("A file error", err.Error())
+	assert.Equal(int64(0), download.Written)
 }
 
 func TestDownloadWriteError(t *testing.T) {
@@ -313,7 +316,8 @@ func TestDownloadWriteError(t *testing.T) {
 
 	download.Start()
 
-	written, err := download.Wait()
-	assert.Equal(int64(0), written)
+	err := download.Wait()
 	assert.NotNil(err)
+	assert.Equal(int64(0), download.Written)
+
 }

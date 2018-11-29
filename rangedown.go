@@ -11,13 +11,15 @@ import (
 
 // Download holds information about a download
 type Download struct {
-	URL      *url.URL
-	File     *os.File
-	FileName string
-	client   HttpClient
-	opener   FileOpener
-	outChn   chan []byte
-	errChn   chan error
+	URL       *url.URL
+	File      *os.File
+	FileName  string
+	client    HttpClient
+	opener    FileOpener
+	outChn    chan []byte
+	errChn    chan error
+	TotalSize int64
+	Written   int64
 }
 
 // Wrap the client to make it easier to test
@@ -63,7 +65,7 @@ func (r *Download) Start() {
 	defer resp.Body.Close()
 
 	// Start consuming the response body
-	size := resp.ContentLength
+	r.TotalSize = resp.ContentLength
 	go func() {
 		defer close(r.outChn)
 		defer close(r.errChn)
@@ -78,7 +80,7 @@ func (r *Download) Start() {
 			if err != nil {
 				// Check for possible end of file indicating end of the download
 				if err == io.EOF {
-					if read != size {
+					if read != r.TotalSize {
 						r.errChn <- fmt.Errorf("Corrupt download")
 					}
 					break
@@ -91,34 +93,33 @@ func (r *Download) Start() {
 }
 
 // Write will read from data channel and write it to the file
-func (r *Download) write() (int64, error) {
-	var written int64
+func (r *Download) write() error {
 
 	// Setup file for download
 	fileName := filepath.Base(r.URL.Path)
 	r.FileName = fileName
 	f, err := r.opener(fileName, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	r.File = f
 
 	for d := range r.outChn {
 		dw, err := r.File.Write(d)
 		if err != nil {
-			return 0, err
+			return err
 		}
-		written += int64(dw)
+		r.Written += int64(dw)
 	}
 	defer r.File.Close()
-	return written, nil
+	return nil
 }
 
 // Wait calls write internally and check for errors.
-func (r *Download) Wait() (int64, error) {
-	written, err := r.write()
+func (r *Download) Wait() error {
+	err := r.write()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	return written, nil
+	return nil
 }
