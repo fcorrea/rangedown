@@ -16,10 +16,10 @@ type Download struct {
 	FileName  string
 	client    HttpClient
 	opener    FileOpener
+	TotalSize int64
 	outChn    chan []byte
 	errChn    chan error
-	TotalSize int64
-	Written   int64
+	wrChn     chan int64
 }
 
 // Wrap the client to make it easier to test
@@ -42,6 +42,7 @@ func NewDownload(downloadURL string) (*Download, error) {
 		opener: os.OpenFile,
 		outChn: make(chan []byte),
 		errChn: make(chan error),
+		wrChn:  make(chan int64),
 	}, nil
 }
 
@@ -92,7 +93,7 @@ func (r *Download) Start() {
 	}()
 }
 
-// Wait reads on the outChan will writes to the disk
+// Wait reads on the outChan and writes it to the disk
 func (r *Download) Wait() error {
 
 	// Setup file for download
@@ -109,8 +110,21 @@ func (r *Download) Wait() error {
 		if err != nil {
 			return err
 		}
-		r.Written += int64(dw)
+		r.wrChn <- int64(dw)
 	}
 	defer r.File.Close()
 	return nil
+}
+
+// Progress checks on Download
+func (r *Download) Progress() <-chan int {
+	prog := make(chan int, 1)
+
+	go func() {
+		for v := range r.wrChn {
+			prog <- int(v * 100 / r.TotalSize)
+		}
+	}()
+
+	return prog
 }
