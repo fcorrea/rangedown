@@ -84,7 +84,6 @@ func NewTestableDownload(url string, client HttpClient) *Download {
 	download.opener = OpenTempFile
 	download.outChn = make(chan []byte, 1)
 	download.errChn = make(chan error, 1)
-	download.wrChn = make(chan int64, 1)
 	return download
 }
 
@@ -261,7 +260,7 @@ func TestDownloadWait(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait()
+	err := download.Wait(false)
 	if err != nil {
 		panic(err)
 	}
@@ -292,7 +291,7 @@ func TestDownloadWaitOpenFileError(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait()
+	err := download.Wait(false)
 	assert.Equal("A file error", err.Error())
 }
 
@@ -315,6 +314,6 @@ func TestDownloadWriteError(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait()
+	err := download.Wait(false)
 	assert.NotNil(err)
 }
