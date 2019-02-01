@@ -260,7 +260,7 @@ func TestDownloadWait(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait(false)
+	err := download.Wait()
 	if err != nil {
 		panic(err)
 	}
@@ -291,7 +291,7 @@ func TestDownloadWaitOpenFileError(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait(false)
+	err := download.Wait()
 	assert.Equal("A file error", err.Error())
 }
 
@@ -314,6 +314,6 @@ func TestDownloadWriteError(t *testing.T) {
 
 	download.Start()
 
-	err := download.Wait(false)
+	err := download.Wait()
 	assert.NotNil(err)
 }
