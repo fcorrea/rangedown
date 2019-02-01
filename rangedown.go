@@ -7,9 +7,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"time"
-
-	tm "github.com/buger/goterm"
 )
 
 // Download holds information about a download
@@ -20,6 +17,7 @@ type Download struct {
 	client    HttpClient
 	opener    FileOpener
 	TotalSize int64
+	written   int64
 	outChn    chan []byte
 	errChn    chan error
 }
@@ -96,9 +94,7 @@ func (r *Download) Start() {
 }
 
 // Wait reads on the outChan and writes it to the disk
-func (r *Download) Wait(progress bool) error {
-	var written int64
-
+func (r *Download) Wait() error {
 	// Setup file for download
 	fileName := filepath.Base(r.URL.Path)
 	r.FileName = fileName
@@ -113,17 +109,7 @@ func (r *Download) Wait(progress bool) error {
 		if err != nil {
 			return err
 		}
-		if progress == true {
-			written += int64(dw)
-			mib := int64(written / 1024 / 1024)
-			perc := written * 100 / r.TotalSize
-
-			tm.Clear()
-			tm.MoveCursor(1, 1)
-			tm.Printf("Downloading %v %v%% (%v/%v), %v MiB\n", r.FileName, perc, written, r.TotalSize, mib)
-			tm.Flush()
-			time.Sleep(5 * time.Nanosecond)
-		}
+		r.written += int64(dw)
 	}
 	defer r.File.Close()
 

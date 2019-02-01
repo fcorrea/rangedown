@@ -30,7 +30,7 @@ func main() {
 	download.Start()
 
 	// Wait and check for progress
-	err = download.Wait(true)
+	err = download.Wait()
 	if err != nil {
 		panic(err.Error())
 	}
