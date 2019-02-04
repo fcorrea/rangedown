@@ -11,9 +11,10 @@ var rangetests = []struct {
 	in2      int
 	out      map[int][]int64
 }{
-	{"Get ranges", 80, 2, map[int][]int64{0: {0, 40}, 1: {41, 80}}},
-	{"Get ranges grows the last chunk", 83, 2, map[int][]int64{0: {0, 41}, 1: {42, 83}}},
-	{"Get ranges one chunk", 80, 1, map[int][]int64{0: {0, 80}}},
+	{"GetRanges", 80, 2, map[int][]int64{0: {0, 40}, 1: {41, 80}}},
+	{"GetRanges grows the last chunk", 83, 2, map[int][]int64{0: {0, 41}, 1: {42, 83}}},
+	{"GetRanges one chunk", 80, 1, map[int][]int64{0: {0, 80}}},
+	{"GetRanges zero sized", 0, 1, map[int][]int64{0: {0, 0}}},
 }
 
 func TestRanges(t *testing.T) {

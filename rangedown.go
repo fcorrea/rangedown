@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 )
 
-// Download holds information about a download
-type Download struct {
+// Chunk holds information about a download
+type Chunk struct {
 	URL       *url.URL
 	File      *os.File
 	FileName  string
@@ -30,13 +30,13 @@ type HttpClient interface {
 // FileOpener has the same method signature of os.OpenFile and helps with unit testing
 type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
-// NewDownload initializes a Download with downloadURL, a default http client and an FileOpener
-func NewDownload(downloadURL string) (*Download, error) {
+// NewChunk initializes a Chunk with downloadURL, a default http client and an FileOpener
+func NewChunk(downloadURL string) (*Chunk, error) {
 	p, err := url.Parse(downloadURL)
 	if err != nil {
 		return nil, err
 	}
-	return &Download{
+	return &Chunk{
 		URL:    p,
 		client: http.DefaultClient,
 		opener: os.OpenFile,
@@ -47,7 +47,7 @@ func NewDownload(downloadURL string) (*Download, error) {
 
 // Start starts downloading the requested URL and as soon as data start being read,
 // it sends it out in the outChn channel
-func (r *Download) Start() {
+func (r *Chunk) Start() {
 	var read int64
 
 	// Build the request
@@ -94,7 +94,7 @@ func (r *Download) Start() {
 }
 
 // Wait reads on the outChan and writes it to the disk
-func (r *Download) Wait() error {
+func (r *Chunk) Wait() error {
 	// Setup file for download
 	fileName := filepath.Base(r.URL.Path)
 	r.FileName = fileName
