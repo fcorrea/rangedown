@@ -9,6 +9,28 @@ import (
 	"path/filepath"
 )
 
+// Download holds information about a file download
+type Download struct {
+	URL                 *url.URL
+	ParallelConnections int
+	chunks              []*Chunk
+	TotalSize           int64
+	TotalProgress       int
+}
+
+// NewDownload returns a Download with URL and ParallelConnection set
+func NewDownload(downloadURL string, parallelConnections int) (*Download, error) {
+	p, err := url.Parse(downloadURL)
+	if err != nil {
+		return nil, err
+	}
+	return &Download{
+		URL:                 p,
+		ParallelConnections: parallelConnections,
+	}, nil
+
+}
+
 // Chunk holds information about a download
 type Chunk struct {
 	URL       *url.URL
@@ -31,13 +53,9 @@ type HttpClient interface {
 type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
 // NewChunk initializes a Chunk with downloadURL, a default http client and an FileOpener
-func NewChunk(downloadURL string) (*Chunk, error) {
-	p, err := url.Parse(downloadURL)
-	if err != nil {
-		return nil, err
-	}
+func NewChunk(u *url.URL) (*Chunk, error) {
 	return &Chunk{
-		URL:    p,
+		URL:    u,
 		client: http.DefaultClient,
 		opener: os.OpenFile,
 		outChn: make(chan []byte),

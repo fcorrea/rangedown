@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -78,31 +79,14 @@ func FileOpenerWithWriteError(name string, flags int, perm os.FileMode) (*os.Fil
 	return f, nil
 }
 
-func NewTestableChunk(url string, client HttpClient) *Chunk {
-	download, _ := NewChunk(url)
+func NewTestableChunk(dURL string, client HttpClient) *Chunk {
+	u, _ := url.Parse(dURL)
+	download, _ := NewChunk(u)
 	download.client = client
 	download.opener = OpenTempFile
 	download.outChn = make(chan []byte, 1)
 	download.errChn = make(chan error, 1)
 	return download
-}
-
-func TestNewChunk(t *testing.T) {
-	assert := assert.New(t)
-
-	download, _ := NewChunk("http://foo.com/some.iso")
-	assert.Equal(download.URL.Scheme, "http")
-	assert.Equal(download.URL.Host, "foo.com")
-	assert.Equal(download.URL.Path, "/some.iso")
-}
-
-func TestNewChunkBadURL(t *testing.T) {
-	assert := assert.New(t)
-
-	_, err := NewChunk("123%45%6")
-	assert.NotNil(err)
-	assert.Equal("parse 123%45%6: invalid URL escape \"%6\"", err.Error())
-
 }
 
 func TestChunkStartCorrectURL(t *testing.T) {
@@ -339,4 +323,23 @@ func TestChunkChunks(t *testing.T) {
 
 	err := download.Wait()
 	assert.NotNil(err)
+}
+
+func TestNewDownload(t *testing.T) {
+	assert := assert.New(t)
+
+	download, _ := NewDownload("http://foo.com/some.iso", 16)
+	assert.Equal(download.URL.Scheme, "http")
+	assert.Equal(download.URL.Host, "foo.com")
+	assert.Equal(download.URL.Path, "/some.iso")
+	assert.Equal(download.ParallelConnections, 16)
+}
+
+func TestNewDownloadBadURL(t *testing.T) {
+	assert := assert.New(t)
+
+	_, err := NewDownload("123%45%6", 16)
+	assert.NotNil(err)
+	assert.Equal("parse 123%45%6: invalid URL escape \"%6\"", err.Error())
+
 }
