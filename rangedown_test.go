@@ -79,9 +79,19 @@ func FileOpenerWithWriteError(name string, flags int, perm os.FileMode) (*os.Fil
 	return f, nil
 }
 
-func NewTestableChunk(dURL string, client HttpClient) *Chunk {
+func NewTestableChunk(dURL string, client HTTPClient) *Chunk {
 	u, _ := url.Parse(dURL)
-	download, _ := NewChunk(u)
+	chunk, _ := NewChunk(u)
+	chunk.client = client
+	chunk.opener = OpenTempFile
+	chunk.outChn = make(chan []byte, 1)
+	chunk.errChn = make(chan error, 1)
+	return chunk
+}
+
+func NewTestableDownload(dURL string, client HTTPClient, chunks int) *Chunk {
+	u, _ := url.Parse(dURL)
+	download, _ := NewDownload(u, chunks)
 	download.client = client
 	download.opener = OpenTempFile
 	download.outChn = make(chan []byte, 1)
@@ -105,7 +115,7 @@ func TestChunkStartCorrectURL(t *testing.T) {
 
 	download := NewTestableChunk("http://foo.com/some.iso", client)
 
-	download.Start()
+	download.download()
 }
 
 func TestChunkStartFailedRequest(t *testing.T) {
@@ -122,7 +132,7 @@ func TestChunkStartFailedRequest(t *testing.T) {
 		done <- true
 	}()
 
-	download.Start()
+	download.download()
 
 	<-done
 
@@ -153,7 +163,7 @@ func TestChunkStartCorruptChunk(t *testing.T) {
 		done <- true
 	}()
 
-	download.Start()
+	download.download()
 
 	<-done
 
@@ -184,7 +194,7 @@ func TestChunkStartBadResponseBody(t *testing.T) {
 		done <- true
 	}()
 
-	download.Start()
+	download.download()
 
 	<-done
 
@@ -211,7 +221,7 @@ func TestChunkStartReadsAllContent(t *testing.T) {
 	var result []byte
 	done := make(chan bool)
 
-	download.Start()
+	download.download()
 
 	go func() {
 		for v := range download.outChn {
@@ -242,7 +252,7 @@ func TestChunkWait(t *testing.T) {
 
 	download := NewTestableChunk("http://foo.com/some.iso", client)
 
-	download.Start()
+	download.download()
 
 	err := download.Wait()
 	if err != nil {
@@ -273,7 +283,7 @@ func TestChunkWaitOpenFileError(t *testing.T) {
 	download := NewTestableChunk("http://foo.com/some.iso", client)
 	download.opener = FileOpenerWithError
 
-	download.Start()
+	download.download()
 
 	err := download.Wait()
 	assert.Equal("A file error", err.Error())
@@ -296,7 +306,7 @@ func TestChunkWriteError(t *testing.T) {
 	download := NewTestableChunk("http://foo.com/some.iso", client)
 	download.opener = FileOpenerWithWriteError
 
-	download.Start()
+	download.download()
 
 	err := download.Wait()
 	assert.NotNil(err)
@@ -319,7 +329,7 @@ func TestChunkChunks(t *testing.T) {
 	download := NewTestableChunk("http://foo.com/some.iso", client)
 	download.opener = FileOpenerWithWriteError
 
-	download.Start()
+	download.download()
 
 	err := download.Wait()
 	assert.NotNil(err)
@@ -342,4 +352,39 @@ func TestNewDownloadBadURL(t *testing.T) {
 	assert.NotNil(err)
 	assert.Equal("parse 123%45%6: invalid URL escape \"%6\"", err.Error())
 
+}
+
+func TestDownloadAcceptRangesNotSupported(t *testing.T) {
+	assert := assert.New(t)
+
+	content := RandStringBytes(10)
+	client := NewTestClient(func(req *http.Request) *http.Response {
+		resp := &http.Response{
+			StatusCode: 200,
+			Body:       ioutil.NopCloser(bytes.NewBufferString(content)),
+			Header:     make(http.Header),
+		}
+		resp.ContentLength = int64(len(content))
+		return resp
+	})
+
+	download, _ := NewTestableDownload("http://foo.com/some.iso", client, 16)
+	download.Start()
+
+	assert.Equal(download.AcceptRanges, false)
+	assert.Equal(download.ParallelConnections, 1)
+}
+
+func TestDownloadSingleConnection(t *testing.T) {
+	assert := assert.New(t)
+
+	download, _ := NewDownload("http://foo.com/some.iso", 1)
+	download.Start()
+
+	<-download.done
+
+	assert.Equal(download.ParallelConnections, 1)
+}
+
+func TestDownloadMultipleConnections(t *testing.T) {
 }

@@ -12,10 +12,12 @@ import (
 // Download holds information about a file download
 type Download struct {
 	URL                 *url.URL
+	client              HTTPClient
 	ParallelConnections int
 	chunks              []*Chunk
 	TotalSize           int64
 	TotalProgress       int
+	AcceptRanges        bool
 }
 
 // NewDownload returns a Download with URL and ParallelConnection set
@@ -27,8 +29,39 @@ func NewDownload(downloadURL string, parallelConnections int) (*Download, error)
 	return &Download{
 		URL:                 p,
 		ParallelConnections: parallelConnections,
+		client:              http.DefaultClient,
 	}, nil
 
+}
+
+// CheckRangesSupport checks if the server supports Accept-Ranges
+func checkAcceptRangesSupport(response *http.Response) bool {
+	if _, supported := response.Header["Accept-Ranges"]; !supported {
+		return false
+	} else {
+		return true
+	}
+}
+
+// Start will spin up as many parallel downloads as necessary (Accept-Ranges is supported)
+func (d *Download) Start() error {
+
+	req := &http.Request{
+		URL:    d.URL,
+		Method: "HEAD",
+		Header: make(http.Header),
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if acceptRanges := checkAcceptRangesSupport(resp); acceptRanges {
+		d.AcceptRanges = true
+	} else {
+		d.AcceptRanges = false
+	}
+	return nil
 }
 
 // Chunk holds information about a download
@@ -36,21 +69,13 @@ type Chunk struct {
 	URL       *url.URL
 	File      *os.File
 	FileName  string
-	client    HttpClient
+	client    HTTPClient
 	opener    FileOpener
 	TotalSize int64
 	written   int64
 	outChn    chan []byte
 	errChn    chan error
 }
-
-// Wrap the client to make it easier to test
-type HttpClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-// FileOpener has the same method signature of os.OpenFile and helps with unit testing
-type FileOpener func(string, int, os.FileMode) (*os.File, error)
 
 // NewChunk initializes a Chunk with downloadURL, a default http client and an FileOpener
 func NewChunk(u *url.URL) (*Chunk, error) {
@@ -63,9 +88,9 @@ func NewChunk(u *url.URL) (*Chunk, error) {
 	}, nil
 }
 
-// Start starts downloading the requested URL and as soon as data start being read,
+// download starts downloading the requested URL and as soon as data start being read,
 // it sends it out in the outChn channel
-func (r *Chunk) Start() {
+func (r *Chunk) download() {
 	var read int64
 
 	// Build the request

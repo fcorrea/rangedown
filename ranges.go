@@ -1,6 +1,6 @@
 package rangedown
 
-// GetRanges will create a map containing the download ranges for all chunks
+// GetRanges will create a map containing the download ranges for all download chunks
 func GetRanges(size int64, count int) map[int][]int64 {
 	chunkSize := size / int64(count)
 	remainder := size % int64(count)
